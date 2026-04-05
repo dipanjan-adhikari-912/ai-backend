@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✅ Read raw body (works reliably on Vercel)
+    // ✅ Read raw body (Vercel-safe)
     const rawBody = await new Promise((resolve) => {
       let data = ""
       req.on("data", (chunk) => (data += chunk))
@@ -18,57 +18,42 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
-    // ✅ Model fallback list
-    const models = [
-      "qwen/qwen-2-7b-instruct",
-      "meta-llama/llama-3-8b-instruct",
-      "google/gemma-7b-it"
-    ]
-
-    let lastError = null
-
-    for (const model of models) {
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 8000)
-
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: "user", content: prompt }]
-            }),
-            signal: controller.signal
-          }
-        )
-
-        clearTimeout(timeout)
-
-        const data = await response.json()
-
-        if (response.ok && data?.choices?.[0]?.message?.content) {
-          return res.status(200).json({
-            output: data.choices[0].message.content,
-            model_used: model
-          })
-        }
-
-        lastError = data
-      } catch (err) {
-        lastError = err.message
+    // ✅ Gemini request
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ]
+        })
       }
+    )
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      return res.status(500).json({
+        error: "Gemini error",
+        details: data
+      })
     }
 
-    return res.status(500).json({
-      error: "All models failed",
-      details: lastError
-    })
+    const output =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response"
+
+    return res.status(200).json({ output })
+
   } catch (error) {
     return res.status(500).json({
       error: "Server crash",
