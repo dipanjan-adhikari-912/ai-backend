@@ -22,6 +22,7 @@ export default async function handler(req, res) {
 
     // 🔥 Model fallback list (priority order)
     const models = [
+      "qwen/qwen3.6-plus:free"
       "openchat/openchat-7b",
       "google/gemma-7b-it",
       "nousresearch/nous-capybara-7b"
