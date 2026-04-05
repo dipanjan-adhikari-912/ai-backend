@@ -22,10 +22,11 @@ export default async function handler(req, res) {
 
     // 🔥 Model fallback list (priority order)
     const models = [
-      "qwen/qwen3.6-plus:free"
-      "openchat/openchat-7b",
-      "google/gemma-7b-it",
-      "nousresearch/nous-capybara-7b"
+const models = [
+  "qwen/qwen-2-7b-instruct",
+  "meta-llama/llama-3-8b-instruct",
+  "google/gemma-7b-it"
+]
     ]
 
     let lastError = null
