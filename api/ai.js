@@ -4,7 +4,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✅ Read raw body (Vercel-safe)
     const rawBody = await new Promise((resolve) => {
       let data = ""
       req.on("data", (chunk) => (data += chunk))
@@ -18,9 +17,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
-    // ✅ Gemini request
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -29,11 +27,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
+              parts: [{ text: prompt }]
             }
           ]
         })
