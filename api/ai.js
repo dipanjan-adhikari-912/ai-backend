@@ -1,14 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
 
   try {
-    // Parse body safely
+    // Read raw body (Vercel-safe)
     const rawBody = await new Promise((resolve) => {
       let data = ""
       req.on("data", (chunk) => (data += chunk))
@@ -22,14 +18,53 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
-    // ✅ Use Gemini SDK (this works even when REST fails)
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" })
+    // Model fallback (all available for your key)
+    const models = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-flash-latest"
+    ]
 
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
+    let lastError = null
 
-    return res.status(200).json({ output: text })
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: prompt }]
+                }
+              ]
+            })
+          }
+        )
+
+        const data = await response.json()
+
+        if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return res.status(200).json({
+            output: data.candidates[0].content.parts[0].text,
+            model_used: model
+          })
+        }
+
+        lastError = data
+      } catch (err) {
+        lastError = err.message
+      }
+    }
+
+    return res.status(500).json({
+      error: "All models failed",
+      details: lastError
+    })
 
   } catch (error) {
     return res.status(500).json({
@@ -37,6 +72,7 @@ export default async function handler(req, res) {
       details: error.message
     })
   }
+}
 }
 // redeploy trigger
 // trigger fresh deploy
