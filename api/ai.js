@@ -4,21 +4,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    let body = {}
+    // ✅ Read raw body (works reliably on Vercel)
+    const rawBody = await new Promise((resolve) => {
+      let data = ""
+      req.on("data", (chunk) => (data += chunk))
+      req.on("end", () => resolve(data))
+    })
 
-    // Safe parsing
-    try {
-      body = req.body || {}
-    } catch (e) {
-      return res.status(400).json({ error: "Invalid JSON body" })
-    }
-
-    const prompt = body?.prompt
+    const body = rawBody ? JSON.parse(rawBody) : {}
+    const prompt = body.prompt
 
     if (!prompt) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
+    // ✅ Model fallback list
     const models = [
       "qwen/qwen-2-7b-instruct",
       "meta-llama/llama-3-8b-instruct",
@@ -29,23 +29,24 @@ export default async function handler(req, res) {
 
     for (const model of models) {
       try {
-        console.log("Trying model:", model)
-
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 8000)
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "user", content: prompt }]
-          }),
-          signal: controller.signal
-        })
+        const response = await fetch(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: prompt }]
+            }),
+            signal: controller.signal
+          }
+        )
 
         clearTimeout(timeout)
 
@@ -59,10 +60,8 @@ export default async function handler(req, res) {
         }
 
         lastError = data
-
       } catch (err) {
         lastError = err.message
-        console.error("Model failed:", model, err.message)
       }
     }
 
@@ -70,10 +69,7 @@ export default async function handler(req, res) {
       error: "All models failed",
       details: lastError
     })
-
   } catch (error) {
-    console.error("CRASH:", error)
-
     return res.status(500).json({
       error: "Server crash",
       details: error.message
