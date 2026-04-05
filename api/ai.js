@@ -4,10 +4,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body
+    let body = req.body
 
-    const { prompt } = body || {}
+    if (!body || Object.keys(body).length === 0) {
+      let raw = ""
+      for await (const chunk of req) {
+        raw += chunk
+      }
+      body = raw ? JSON.parse(raw) : {}
+    }
+
+    const { prompt } = body
 
     if (!prompt) {
       return res.status(400).json({ error: "Prompt is required" })
