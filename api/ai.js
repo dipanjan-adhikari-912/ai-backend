@@ -1,9 +1,14 @@
+import { GoogleGenerativeAI } from "@google/generative-ai"
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
 
   try {
+    // Parse body safely
     const rawBody = await new Promise((resolve) => {
       let data = ""
       req.on("data", (chunk) => (data += chunk))
@@ -17,36 +22,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
-        })
-      }
-    )
+    // ✅ Use Gemini SDK (this works even when REST fails)
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" })
 
-    const data = await response.json()
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text()
 
-    if (!response.ok) {
-      return res.status(500).json({
-        error: "Gemini error",
-        details: data
-      })
-    }
-
-    const output =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response"
-
-    return res.status(200).json({ output })
+    return res.status(200).json({ output: text })
 
   } catch (error) {
     return res.status(500).json({
