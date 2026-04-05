@@ -4,13 +4,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { prompt } = req.body
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body
+
+    const { prompt } = body || {}
 
     if (!prompt) {
       return res.status(400).json({ error: "Prompt is required" })
     }
-
-    console.log("API KEY:", process.env.OPENROUTER_API_KEY)
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -20,18 +21,11 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "mistralai/mistral-7b-instruct",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
+        messages: [{ role: "user", content: prompt }]
       })
     })
 
     const data = await response.json()
-
-    console.log("OpenRouter response:", data)
 
     if (!response.ok) {
       return res.status(500).json({
@@ -45,8 +39,6 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error("CRASH:", error)
-
     return res.status(500).json({
       error: "Server crash",
       details: error.message
