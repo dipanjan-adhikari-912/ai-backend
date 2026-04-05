@@ -20,29 +20,50 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Prompt is required" })
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "mistralai/mistral-7b-instruct",
-        messages: [{ role: "user", content: prompt }]
-      })
-    })
+    // 🔥 Model fallback list (priority order)
+    const models = [
+      "openchat/openchat-7b",
+      "google/gemma-7b-it",
+      "nousresearch/nous-capybara-7b"
+    ]
 
-    const data = await response.json()
+    let lastError = null
 
-    if (!response.ok) {
-      return res.status(500).json({
-        error: "OpenRouter error",
-        details: data
-      })
+    for (const model of models) {
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: prompt }]
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok && data.choices?.[0]?.message?.content) {
+          return res.status(200).json({
+            output: data.choices[0].message.content,
+            model_used: model
+          })
+        }
+
+        // store error and continue
+        lastError = data
+
+      } catch (err) {
+        lastError = err.message
+      }
     }
 
-    return res.status(200).json({
-      output: data.choices?.[0]?.message?.content
+    // ❌ If all models fail
+    return res.status(500).json({
+      error: "All models failed",
+      details: lastError
     })
 
   } catch (error) {
